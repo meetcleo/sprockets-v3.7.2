@@ -17,12 +17,25 @@ class Sprockets::ERBProcessor
   end
 
   def call(input)
-    engine = ::ERB.new(input[:data], nil, '<>')
+    if keyword_constructor? # Ruby 2.6+
+      engine = ::ERB.new(input[:data], trim_mode: '<>')
+    else
+      engine = ::ERB.new(input[:data], nil, '<>')
+    end
+    engine.filename = input[:filename]
+
     context = input[:environment].context_class.new(input)
     klass = (class << context; self; end)
     klass.class_eval(&@block) if @block
     engine.def_method(klass, :_evaluate_template, input[:filename])
     data = context._evaluate_template
     context.metadata.merge(data: data)
+  end
+
+  private
+
+  def keyword_constructor?
+    return @keyword_constructor if defined? @keyword_constructor
+    @keyword_constructor = ::ERB.instance_method(:initialize).parameters.include?([:key, :trim_mode])
   end
 end
